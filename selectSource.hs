@@ -1,12 +1,14 @@
 -- selectSource.hs
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Monad.IO.Class  (MonadIO,liftIO)
-import Data.Conduit (await,yield,leftover,Conduit,Sink,($$),(=$))
-import qualified Data.Conduit.List as CL
-import Database.Persist (selectSource,entityVal,Entity)
-import Database.Persist.Sqlite (runSqlite)
-import Specs (MyRecord(..),myRecordValue)
+import           Control.Monad.IO.Class      (MonadIO, liftIO)
+import           Control.Monad.Logger
+import           Data.Conduit                (Conduit, Sink, await, leftover,
+                                              yield, ($$), (=$))
+import qualified Data.Conduit.List           as CL
+import           Database.Persist            (Entity, entityVal, selectSource)
+import           Database.Persist.Postgresql
+import           Specs                       (MyRecord (..), myRecordValue)
 
 -- |Unpacks incoming values from upstream from MyRecord to Int
 entityToValue :: Monad m => Conduit (Entity MyRecord) m Int
@@ -31,8 +33,12 @@ showPairs = do
 printString :: (Monad m, MonadIO m) => Sink String m ()
 printString = CL.mapM_ (liftIO . putStrLn)
 
-main :: IO ()
-main = runSqlite "test.sqlite" $ do
+db = "dbname=test host=localhost user=postgres port=5432"
 
-  -- Select all records from DB and return them as a Source
-  selectSource [] [] $$ entityToValue =$ showPairs =$ printString
+main :: IO ()
+-- main = runSqlite "test.sqlite" $ do
+main = runNoLoggingT $ withPostgresqlPool db 10 $ \pool -> do
+  -- Create test DB and populate with values
+    liftIO $ flip runSqlPersistMPool pool $ do
+        -- Select all records from DB and return them as a Source
+        selectSource [] [] $$ entityToValue =$ showPairs =$ printString
